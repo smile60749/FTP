@@ -1,0 +1,87 @@
+#include <sys/types.h> 
+#include <sys/socket.h> 
+#include <netinet/in.h> 
+#include <netdb.h> 
+#include <stdio.h> 
+#include <string.h> 
+#define TRUE 1 
+main() 
+{ 
+	int sock, msgsock, length; 
+	struct sockaddr_in name; 
+	unsigned int sz=0;
+	FILE *fp; //檔案位置
+	int rval,wrval; //rval=讀取的值, wrval=寫入的值
+	int count=0;
+	char buf[1024],filename[1024],filesz[1024],id[1024];//buf=檔案內容, filename=檔案名稱, filesz=檔案大小 
+	char *data;
+
+	sock = socket(AF_INET, SOCK_STREAM, 0); //開sock, (IPv4, TCP)
+	if (sock < 0) 
+	{ 
+		perror("[無法正常打開socket]"); 
+		exit(1); 
+	} 
+	name.sin_family = AF_INET; //使用IPv4
+	name.sin_addr.s_addr = INADDR_ANY; 
+	name.sin_port = 5000; 
+	if (bind(sock, (struct sockaddr *)&name, sizeof name) < 0) //連結client端
+	{
+		perror ("[socket無法正常連線]"); 
+		exit(1); 
+	} 
+	listen(sock,5); 
+	do{ 
+		msgsock = accept(sock,(struct sockaddr *)0, (int *)0); //處理連線
+		if (msgsock == -1) 
+			perror("[連線錯誤!]\n "); 
+		else do { 
+			bzero(filename, sizeof(filename) );//檔案名稱清為零
+			bzero(id, sizeof(id) );//名稱清為零
+			if ((rval = read(msgsock, id,1024)) < 0) //id
+				perror("[無法讀取使用者名稱]"); 			
+			if ((rval = read(msgsock, filename,1024)) < 0) //讀取client所要求的檔案名稱
+				perror("[無法讀取檔案名稱]"); 
+
+			if (rval == 0) //結束連線
+				printf("[結束連線]\n"); 
+			else 
+			{ 
+				if ((fp=fopen(filename,"rb")) == NULL)//開啟該檔案 且 判斷是否存在
+				{ 
+					printf("[抱歉! 無法找到所要的檔案 : %s !]\n ",filename); //filename=檔案名稱 
+					break; 
+				} 
+				printf("—————————————————————————————————————————————————————————");
+				printf("\n [由[%s]使用者...]",id); 
+				printf("\n [開啟[%s]檔案及傳輸中 !!]\n ",filename); 
+				
+				fseek(fp, 0L, SEEK_END); //從檔案頭算到檔案尾有幾個字元						
+				sz = ftell(fp); //取得檔案大小 單位byte	
+				fseek(fp, 0L, SEEK_SET);
+				sprintf(filesz,"%d",sz);//將sz的值放入filesz字串內
+				printf("[檔案大小：%d Byte.]\n",sz);
+				write(msgsock,filesz ,sizeof(filesz));//傳送檔案大小
+				sleep(5);
+				data = (char *)malloc(sz);//配置大小
+				fread(data, sz, 1 , fp);//從檔案讀取資料
+				count=1;//成功count＝１
+				write(msgsock,data,sz);//傳送檔案資料
+				fclose(fp); 
+				printf(" [關閉[%s]檔案 !!] \n",filename); 
+				bzero(data, sz);//檔案內容清為零 
+				rval=0; 
+			} 
+		}while (rval != 0); 
+		close(msgsock); 
+		if(count)
+		{		
+			printf(" [恭喜[%s]檔案已傳輸完成 !!] \n ",filename); 
+		}			
+		printf("[檔案傳輸伺服器在 Port 5000 等待客戶連線中 !!]\n"); 
+		printf("—————————————————————————————————————————————————————————\n");
+
+	}while (TRUE); 
+	close(sock); 
+	exit(0); 
+}

@@ -1,0 +1,80 @@
+#include <sys/types.h> 
+#include <sys/socket.h> 
+#include <netinet/in.h> 
+#include <netdb.h> 
+#include <stdio.h> 
+#define DATA "The sea is clam ...." 
+main(int argc, char *argv[] ) 
+{ 
+	int sock, rval, wrval; 
+	unsigned int sz=0;
+	char buf[1024], filesz[1024], id[1024]; //檔案內容
+	struct sockaddr_in server; 
+	struct hostent *hp, *gethostbyname(); 
+	FILE *fp; 
+	int count=0,all=0;
+	char *data,*fi;
+	float per=0;
+
+	sock = socket(AF_INET,SOCK_STREAM,0); //開啟sock
+	if (sock < 0) //若sock開啟失敗
+	{ 
+		perror("[無法正常打開socket]"); 
+		exit(1); 
+	} 
+	server.sin_family=AF_INET; 
+	hp=gethostbyname(argv[1]); //ip
+	if (hp == 0 ) //若ip讀取失敗
+	{ 
+		printf( "[%s : 找不到主機IP]\n", argv[1]); //ip
+		exit(2); 
+	} 
+	bcopy((char*)hp->h_addr, (char *)&server.sin_addr, hp->h_length); //把第二個複製到第一個
+	server.sin_port = 5000; //設定伺服器的埠號
+	if (connect(sock, (struct sockaddr *)&server, sizeof server) < 0) //連結server端
+	{ 
+		perror ("[socket無法正常連線]"); 
+		exit(1); 
+	}
+	if (write(sock, argv[2],strlen(argv[2])) < 0) //id
+		perror ("[使用者ID無法正常寫入socket]");
+	sleep(1);  
+	if (write(sock, argv[3],strlen(argv[3])) < 0) //將檔案名稱寫入至sock,　argv[2]=檔案名稱
+		perror ("[無法正常寫入socket]"); 
+	sleep(1); 
+	printf("—————————————————————————————————————————————————————————");
+	printf("\n[要求取得檔案 [%s], 並儲存中...]\n",argv[3]); 
+	
+	fp=fopen(argv[4],"wb+"); //於本機開啟一新檔案, argv[3]=取名
+	do
+	{
+		if ((rval=read(sock, filesz, 1024)) <0) //接收檔案大小
+			break;
+	}while(0);
+	sz=atoi(filesz);
+	printf("[檔案大小：%s Byte.]",filesz);
+	data = (char *)malloc(sz);//動態配置大小
+	rval=0;
+	sleep(3);
+	while ((rval=read(sock, data, sz))>1) //當還有資料就繼續傳
+	{ 
+		printf("\n"); 
+		fwrite(data, rval, 1 , fp);//將檔案內容置於新開啟的檔案內
+		printf("[當次接收大小：%d Byte.]\n",rval);
+		all=all+rval;//紀錄目前已傳送大小
+		printf("[已接收總大小：%d Byte.]\n",all);
+		per=((float)all/(float)sz)*100;//計算%
+		printf("[已接收 %.0f %] \n",per);//目前傳送進度
+		count=1;
+	}
+	printf("[檔案存取成功!!] \n");
+	fclose(fp); 
+	close(sock); //關閉sock
+	if(count==0)
+	{
+		printf("[檔案存取失敗 !!] \n"); 
+	}	
+	printf("[結束連線 !!] \n");
+	printf("—————————————————————————————————————————————————————————\n"); 
+	exit(0); 
+}
